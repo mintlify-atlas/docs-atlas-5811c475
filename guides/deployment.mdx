@@ -1,5 +1,5 @@
 ---
-title: "Deploy QR Code Generator to Cloudflare Workers"
+title: "Deploy the QR Code Generator to Cloudflare Workers"
 sidebarTitle: "Deployment"
 description: "Deploy QR Code Generator to Cloudflare Workers using Wrangler CLI or automate deployments with the included GitHub Actions workflow."
 ---
@@ -83,7 +83,7 @@ The pipeline contains two jobs that run sequentially:
 
 **`verify` — Type-check, lint, test, and build**
 
-Runs on every push and every pull request. The job fails fast if any step does not pass, preventing broken code from reaching the deploy step.
+Runs on every push to `main` and every pull request. The job fails fast if any step does not pass, preventing broken code from reaching the deploy step.
 
 | Step | Command |
 |---|---|

@@ -1,7 +1,7 @@
 ---
-title: "Configure Cross-Origin Resource Sharing (CORS)"
+title: "Cross-Origin Resource Sharing (CORS) Configuration"
 sidebarTitle: "CORS"
-description: "QR Code Generator uses an origin allowlist to control cross-origin API access. Set ALLOWED_ORIGINS in wrangler.jsonc to enable CORS from your frontend domains."
+description: "QR Code Generator uses an origin allowlist to control cross-origin access. Set ALLOWED_ORIGINS in wrangler.jsonc to enable CORS from your frontend domains."
 ---
 
 QR Code Generator uses an explicit origin allowlist to control cross-origin access. Rather than using a wildcard (`*`) that would allow any origin, the service reflects the request `Origin` header back to the caller only when that origin appears in the `ALLOWED_ORIGINS` environment variable. Requests from origins not on the list — or same-origin requests that carry no `Origin` header at all — receive no `Access-Control-Allow-Origin` header, and the browser enforces its default same-origin policy.

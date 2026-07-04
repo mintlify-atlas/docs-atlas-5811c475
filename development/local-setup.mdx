@@ -50,13 +50,17 @@ npm install -g pnpm@11.9.0
 | Script | Command | Description |
 |---|---|---|
 | `dev` | `wrangler types && astro dev` | Generates Cloudflare type bindings and starts the Astro dev server on port 4321 |
+| `start` | `wrangler types && astro dev` | Alias for `dev` — identical behavior |
 | `build` | `wrangler types && astro check && astro build` | Type-checks the project and produces a production build |
 | `preview` | `pnpm build && wrangler dev` | Builds the app, then serves it locally using the Wrangler Workers runtime |
 | `publish` | `pnpm build && wrangler deploy` | Builds and deploys the app to Cloudflare Workers |
 | `check` | `wrangler types && astro check` | Runs Wrangler type generation and Astro's TypeScript type checker |
 | `lint` | `eslint .` | Lints all source files with ESLint |
 | `test` | `vitest run` | Runs the full test suite once |
+| `test:coverage` | `vitest run --coverage` | Runs the suite with V8 coverage instrumentation and writes a report to `coverage/` |
 | `format` | `prettier --write .` | Formats all source files with Prettier |
+| `astro` | `astro` | Direct access to the Astro CLI |
+| `wrangler` | `wrangler` | Direct access to the Wrangler CLI |
 
 ## Wrangler Preview Mode
 
@@ -86,7 +90,7 @@ The project configures several `paths` aliases in `tsconfig.json` to avoid deep 
 }
 ```
 
-Vitest mirrors the `@lib/*` and `@app-types/*` aliases via its own `resolve.alias` config so tests can import shared utilities the same way as production code.
+Vitest mirrors the `@lib` and `@app-types` aliases (without the `/*` wildcard, as Vite's alias resolver handles the prefix match) via its own `resolve.alias` config so tests can import shared utilities the same way as production code.
 
 ## Code Quality
 
@@ -94,7 +98,7 @@ The project enforces consistent style and type safety through three complementar
 
 ### Linting
 
-ESLint is configured with the `eslint-plugin-astro` and `typescript-eslint` plugins. Run it across the entire codebase with:
+ESLint is configured with the `@eslint/js`, `eslint-plugin-astro`, and `typescript-eslint` plugins. Run it across the entire codebase with:
 
 ```bash
 pnpm lint

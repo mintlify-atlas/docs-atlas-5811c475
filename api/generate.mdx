@@ -1,6 +1,6 @@
 ---
 title: "POST /api/qr/generate — Generate a QR Code SVG"
-sidebarTitle: "POST /api/qr/generate"
+sidebarTitle: "Generate QR Code"
 description: "POST /api/qr/generate — generates an SVG QR code from an HTTP or HTTPS URL. Accepts optional hex color overrides for foreground and background."
 ---
 
@@ -108,6 +108,21 @@ const svg = await response.text(); // <svg xmlns="http://www.w3.org/2000/svg" ..
 ```
 
 </CodeGroup>
+
+## CORS and OPTIONS
+
+Like all API endpoints, `/api/qr/generate` includes CORS headers on every response:
+
+| Header | Value |
+|---|---|
+| Access-Control-Allow-Methods | POST, OPTIONS |
+| Access-Control-Allow-Headers | Content-Type |
+| Access-Control-Max-Age | 86400 |
+| Vary | Origin |
+
+`Access-Control-Allow-Origin` is reflected only when the request `Origin` matches an entry in the `ALLOWED_ORIGINS` Worker environment variable.
+
+Sending an `OPTIONS` request to this endpoint returns `204 No Content` with the same CORS headers — no body — to satisfy browser preflight checks.
 
 <Tip>
   The SVG response can be used in two ways without any further processing. **Inline:** set the raw SVG string as the `innerHTML` of a container element for full CSS control. **Image tag:** encode the SVG as a data URI — `data:image/svg+xml;charset=utf-8,<url-encoded-svg>` — and use it as the `src` of an `<img>` element for easy sizing and lazy loading.

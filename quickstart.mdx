@@ -150,10 +150,7 @@ This guide walks you through cloning the repository, starting a local developmen
     Because the response is a plain SVG document, you can also embed it inline in any HTML page:
 
     ```html
-    <!-- Rendered inline — scales perfectly at any resolution -->
-    <img src="/api/qr/generate" alt="QR Code" />
-
-    <!-- Or fetch and inject the raw markup -->
+    <!-- Fetch and inject the SVG markup inline -->
     <div id="qr"></div>
     <script>
       fetch('/api/qr/generate', {
