@@ -1,47 +1,210 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get Started with QR Code Generator in 5 Minutes"
+sidebarTitle: "Quickstart"
+description: "Make your first POST /api/qr/generate call and receive an SVG QR code in under five minutes using curl or JavaScript fetch."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
-
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
-
-## Prerequisites
-
-Before you begin, you must have:
-
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
+This guide walks you through cloning the repository, starting a local development server, and making your first request to `POST /api/qr/generate`. By the end you will have a working SVG QR code saved to your machine and a clear understanding of the request/response shape.
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
+  <Step title="Prerequisites">
+    Make sure the following tools are installed before continuing.
+
+    **Node.js v24 or later**
 
     ```bash
-    npm install your-package
+    node --version
+    # Expected: v24.x.x or higher
+    ```
+
+    **pnpm**
+
+    ```bash
+    pnpm --version
+    # Expected: 11.x.x or higher
+    ```
+
+    If pnpm is not installed, enable it via Node.js's built-in Corepack:
+
+    ```bash
+    corepack enable
+    corepack prepare pnpm@latest --activate
     ```
   </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
+
+  <Step title="Clone & Install">
+    Clone the repository and install all dependencies with pnpm.
 
     ```bash
-    your-cli init
+    git clone https://github.com/dadu0699/qr-code.git
+    cd qr-code
+    pnpm install
     ```
+
+    pnpm resolves the exact versions pinned in `pnpm-lock.yaml` and links packages via a content-addressed store, keeping your `node_modules` lean.
   </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+
+  <Step title="Start the Dev Server">
+    Launch the Astro development server. Wrangler generates the Cloudflare Workers type declarations first, then Astro starts with hot-module replacement enabled.
 
     ```bash
-    your-cli start
+    pnpm dev
+    ```
+
+    The server starts on **port 4321**. You should see output similar to:
+
+    ```
+    ┃ Local    http://localhost:4321/
+    ┃ Network  use --host to expose
+    ```
+
+    Open `http://localhost:4321` in a browser to explore the built-in web UI, or proceed to the next step to call the API directly.
+  </Step>
+
+  <Step title="Make Your First Request">
+    With the dev server running, send a `POST` request to `/api/qr/generate`. The endpoint accepts a JSON body and returns an `image/svg+xml` response.
+
+    <CodeGroup>
+      ```bash curl
+      curl -X POST http://localhost:4321/api/qr/generate \
+        -H 'Content-Type: application/json' \
+        -d '{"url": "https://github.com/dadu0699/qr-code"}'
+      ```
+
+      ```js JavaScript fetch
+      const response = await fetch('http://localhost:4321/api/qr/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: 'https://github.com/dadu0699/qr-code' }),
+      });
+      const svg = await response.text();
+      console.log(svg); // <svg ...>...</svg>
+      ```
+    </CodeGroup>
+
+    A successful response returns HTTP `200` with `Content-Type: image/svg+xml` and an SVG document in the body:
+
+    ```xml
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ...">
+      <!-- QR code path data -->
+    </svg>
+    ```
+
+    <Note>
+      When no `color` object is provided, the API uses the default color scheme: **dark `#000000`** (foreground modules) and **light `#FFFFFF`** (background). These defaults maximise compatibility with all standard QR code scanners.
+    </Note>
+
+    You can also pass custom hex colors to match your brand:
+
+    <CodeGroup>
+      ```bash curl (custom colors)
+      curl -X POST http://localhost:4321/api/qr/generate \
+        -H 'Content-Type: application/json' \
+        -d '{
+          "url": "https://github.com/dadu0699/qr-code",
+          "color": {
+            "dark": "#1a1a2e",
+            "light": "#f0f0f0"
+          }
+        }'
+      ```
+
+      ```js JavaScript fetch (custom colors)
+      const response = await fetch('http://localhost:4321/api/qr/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: 'https://github.com/dadu0699/qr-code',
+          color: {
+            dark: '#1a1a2e',
+            light: '#f0f0f0',
+          },
+        }),
+      });
+      const svg = await response.text();
+      ```
+    </CodeGroup>
+
+    Valid color formats are `#RGB`, `#RGBA`, `#RRGGBB`, and `#RRGGBBAA`. Passing any other format returns a `400` error with a descriptive JSON message.
+  </Step>
+
+  <Step title="View the SVG">
+    Save the SVG to a file and open it directly in your browser or any SVG viewer:
+
+    ```bash
+    curl -X POST http://localhost:4321/api/qr/generate \
+      -H 'Content-Type: application/json' \
+      -d '{"url": "https://github.com/dadu0699/qr-code"}' \
+      -o qr-code.svg
+
+    # macOS
+    open qr-code.svg
+
+    # Linux (xdg-open)
+    xdg-open qr-code.svg
+
+    # Windows
+    start qr-code.svg
+    ```
+
+    Because the response is a plain SVG document, you can also embed it inline in any HTML page:
+
+    ```html
+    <!-- Rendered inline — scales perfectly at any resolution -->
+    <img src="/api/qr/generate" alt="QR Code" />
+
+    <!-- Or fetch and inject the raw markup -->
+    <div id="qr"></div>
+    <script>
+      fetch('/api/qr/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: 'https://example.com' }),
+      })
+        .then((r) => r.text())
+        .then((svg) => {
+          document.getElementById('qr').innerHTML = svg;
+        });
+    </script>
     ```
   </Step>
 </Steps>
 
-<Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
+## Example Request & Response
 
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
+**Request body shape** (`QRCodeRequest`):
+
+```json
+{
+  "url": "https://github.com/dadu0699/qr-code",
+  "color": {
+    "dark": "#000000",
+    "light": "#FFFFFF"
+  }
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `url` | `string` | ✅ Yes | The HTTP or HTTPS URL to encode. Maximum 2 048 characters. |
+| `color.dark` | `string` | ❌ No | Hex color for QR modules (foreground). Defaults to `#000000`. |
+| `color.light` | `string` | ❌ No | Hex color for the background. Defaults to `#FFFFFF`. |
+
+**Success response:**
+
+```
+HTTP/1.1 200 OK
+Content-Type: image/svg+xml
+```
+
+**Error response** (example — invalid URL protocol):
+
+```json
+{
+  "error": "URL protocol must be http or https"
+}
+```
+
+<Tip>
+  For the complete list of request parameters, validation rules, and all possible error responses, see the [API Reference — Generate endpoint](/api/generate) and the [API Overview](/api/overview).
 </Tip>

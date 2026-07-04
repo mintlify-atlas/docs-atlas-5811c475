@@ -1,0 +1,72 @@
+---
+title: "QR Code Generator REST API Overview"
+sidebarTitle: "Overview"
+description: "The QR Code Generator API exposes two endpoints for generating SVG QR codes and checking service health. Base URL and authentication overview."
+---
+
+The QR Code Generator API is a lightweight REST service built with Astro 6 and deployed on Cloudflare Workers. It accepts a URL and optional color preferences, and returns a ready-to-use SVG QR code — no authentication required, no client library needed. Two endpoints cover the full surface area of the API: one to generate QR codes and one to verify service availability.
+
+## Base URL
+
+During local development the API is served by the Astro dev server:
+
+```
+http://localhost:4321
+```
+
+For production, replace the base URL with your Cloudflare Workers deployment URL:
+
+```
+https://your-worker.workers.dev
+```
+
+All endpoint paths are the same in both environments.
+
+## Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| POST | /api/qr/generate | Generate a QR code SVG from a URL |
+| GET | /api/health-check.json | Check if the service is running |
+| OPTIONS | /api/qr/generate | CORS preflight |
+| OPTIONS | /api/health-check.json | CORS preflight |
+
+## Authentication
+
+No authentication is required — the API is fully public. Access control is managed at the CORS layer through the `ALLOWED_ORIGINS` environment variable. Only origins listed in that variable receive an `Access-Control-Allow-Origin` response header; all other cross-origin requests are blocked by the browser. Same-origin requests are always permitted.
+
+## Request Format
+
+`POST /api/qr/generate` expects a JSON body. You must include the `Content-Type: application/json` header on every POST request; omitting it or sending a different content type will result in a `400 Invalid JSON body` error.
+
+`GET /api/health-check.json` requires no request body or query parameters.
+
+## Response Format
+
+| Endpoint | Success Content-Type | Body |
+|---|---|---|
+| POST /api/qr/generate | `image/svg+xml` | SVG document string |
+| GET /api/health-check.json | `application/json` | JSON object |
+
+## Error Format
+
+All error responses use `application/json` and follow a single consistent shape:
+
+```json
+{ "error": "<message>" }
+```
+
+Client errors return HTTP `400`; internal failures return HTTP `500`. The `error` field always contains a human-readable description of what went wrong.
+
+## CORS
+
+Every response includes CORS headers (`Vary: Origin`, `Access-Control-Allow-Methods`, `Access-Control-Allow-Headers`, `Access-Control-Max-Age`). The `Access-Control-Allow-Origin` header is reflected only when the request `Origin` matches an entry in the `ALLOWED_ORIGINS` allowlist configured on the Worker. Both endpoints respond to `OPTIONS` preflight requests with `204 No Content`.
+
+<CardGroup cols={2}>
+  <Card title="POST /api/qr/generate" icon="qrcode" href="/api/generate">
+    Generate an SVG QR code from any HTTP or HTTPS URL, with optional hex color overrides for foreground and background.
+  </Card>
+  <Card title="GET /api/health-check.json" icon="heart-pulse" href="/api/health-check">
+    Confirm the service is running. Use for uptime monitoring, load balancer probes, and CI readiness checks.
+  </Card>
+</CardGroup>

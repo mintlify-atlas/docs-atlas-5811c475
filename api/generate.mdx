@@ -1,0 +1,114 @@
+---
+title: "POST /api/qr/generate — Generate a QR Code SVG"
+sidebarTitle: "POST /api/qr/generate"
+description: "POST /api/qr/generate — generates an SVG QR code from an HTTP or HTTPS URL. Accepts optional hex color overrides for foreground and background."
+---
+
+The `/api/qr/generate` endpoint accepts a URL and returns a complete SVG document encoding that URL as a QR code. The SVG can be embedded inline in HTML, served as a file download, or converted to a raster image. Call this endpoint whenever you need a scannable QR code at runtime — no pre-generation or storage required.
+
+```
+POST /api/qr/generate
+```
+
+## Request
+
+### Headers
+
+| Header | Value | Required |
+|---|---|---|
+| Content-Type | application/json | Yes |
+
+### Body
+
+<ParamField body="url" type="string" required>
+  The HTTP or HTTPS URL to encode in the QR code. Must be a valid absolute URL — relative paths are not accepted. Maximum length is 2048 characters. URLs using any protocol other than `http:` or `https:` (e.g. `ftp://`, `file://`) are rejected.
+</ParamField>
+
+<ParamField body="color" type="object">
+  Optional color overrides for the QR code. When omitted, the default dark-on-light palette is used (`#000000` on `#FFFFFF`).
+
+  <Expandable title="color fields">
+    <ParamField body="color.dark" type="string">
+      Hex color for the QR modules (the foreground squares). Accepts 3-digit (`#RGB`), 4-digit (`#RGBA`), 6-digit (`#RRGGBB`), or 8-digit (`#RRGGBBAA`) hex formats. Default: `#000000`.
+    </ParamField>
+
+    <ParamField body="color.light" type="string">
+      Hex color for the QR code background. Accepts the same hex formats as `color.dark`. Default: `#FFFFFF`.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<Note>
+  In the underlying `qrcode` library, `dark` refers to the QR **modules** (foreground) and `light` refers to the **background**. For maximum scanner compatibility, keep sufficient contrast between the two colors — dark modules on a light background is the conventional choice.
+</Note>
+
+## Response
+
+### 200 OK
+
+Returns the QR code as an SVG document.
+
+| Header | Value |
+|---|---|
+| Content-Type | image/svg+xml |
+
+<ResponseField name="body" type="string">
+  A complete SVG document string. The root element is `<svg xmlns="http://www.w3.org/2000/svg" ...>` containing the QR code paths rendered at the requested colors. The response body is plain text — read it with `response.text()`, not `response.json()`.
+</ResponseField>
+
+**Example response (excerpt):**
+
+```
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 37 37" ...>...</svg>
+```
+
+## Error Responses
+
+| Status | Error message | Cause |
+|---|---|---|
+| 400 | Invalid JSON body | Request body is not valid JSON |
+| 400 | Invalid request body | Body is not a JSON object |
+| 400 | URL is required | `url` field is missing or empty |
+| 400 | URL exceeds maximum length of 2048 characters | URL is longer than 2048 characters |
+| 400 | Invalid URL | `url` is not a valid absolute URL |
+| 400 | URL protocol must be http or https | `url` uses `ftp://`, `file://`, or another non-HTTP protocol |
+| 400 | Invalid color | `color` field is present but is not an object |
+| 400 | Invalid dark color | `color.dark` is not a valid hex color string |
+| 400 | Invalid light color | `color.light` is not a valid hex color string |
+| 500 | Failed to generate QR code | Internal QR generation error |
+
+All error responses have `Content-Type: application/json` and the body shape `{ "error": "<message>" }`.
+
+## Code Examples
+
+<CodeGroup>
+
+```bash Minimal request
+curl -X POST https://your-worker.workers.dev/api/qr/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"url": "https://github.com/dadu0699/qr-code"}'
+```
+
+```bash Custom colors
+curl -X POST https://your-worker.workers.dev/api/qr/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"url": "https://github.com/dadu0699/qr-code", "color": {"dark": "#1E1B4B", "light": "#EEF2FF"}}'
+```
+
+```js JavaScript fetch
+const response = await fetch('https://your-worker.workers.dev/api/qr/generate', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    url: 'https://github.com/dadu0699/qr-code',
+    color: { dark: '#1E1B4B', light: '#EEF2FF' },
+  }),
+});
+const svg = await response.text(); // <svg xmlns="http://www.w3.org/2000/svg" ...>...</svg>
+```
+
+</CodeGroup>
+
+<Tip>
+  The SVG response can be used in two ways without any further processing. **Inline:** set the raw SVG string as the `innerHTML` of a container element for full CSS control. **Image tag:** encode the SVG as a data URI — `data:image/svg+xml;charset=utf-8,<url-encoded-svg>` — and use it as the `src` of an `<img>` element for easy sizing and lazy loading.
+</Tip>

@@ -1,0 +1,56 @@
+{
+  "projectType": "api-service",
+  "projectName": "QR Code Generator",
+  "projectDescription": "A URL-to-QR-code generation service built with Astro and deployed on Cloudflare Workers, exposing a REST API that returns SVG QR codes.",
+  "theme": "luma",
+  "primaryColor": "#4F46E5",
+  "lightColor": "#EEF2FF",
+  "darkColor": "#1E1B4B",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": ["introduction", "quickstart"]
+          },
+          {
+            "group": "Guides",
+            "pages": ["guides/deployment", "guides/configuration", "guides/cors"]
+          },
+          {
+            "group": "Development",
+            "pages": ["development/local-setup", "development/testing"]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Endpoints",
+            "pages": ["api/overview", "api/generate", "api/health-check"]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "QR code generation from URLs via REST API, returning SVG output",
+    "Custom foreground and background hex color support for QR codes",
+    "CORS allowlist via ALLOWED_ORIGINS environment variable",
+    "Deployed as a Cloudflare Worker using Astro's server-side rendering adapter",
+    "Built-in web UI for interactive QR code generation",
+    "Health check endpoint for uptime monitoring",
+    "Input validation: URL format, protocol allow-list (http/https), max length, hex color format"
+  ],
+  "publicApiSurface": [
+    "POST /api/qr/generate",
+    "GET /api/health-check.json",
+    "OPTIONS /api/qr/generate",
+    "OPTIONS /api/health-check.json",
+    "QRCodeRequest { url: string; color?: { dark?: string; light?: string } }",
+    "ALLOWED_ORIGINS environment variable"
+  ]
+}

@@ -1,0 +1,83 @@
+---
+title: "QR Code Generator: URL-to-SVG API on Cloudflare Workers"
+sidebarTitle: "Introduction"
+description: "QR Code Generator converts HTTP/HTTPS URLs into SVG QR codes via a REST API running on Cloudflare Workers with Astro 6."
+---
+
+QR Code Generator is a lightweight REST API that accepts an HTTP or HTTPS URL and returns a fully-formed SVG QR code. It is built with Astro 6 Server Endpoints and deployed on Cloudflare Workers, giving you globally distributed, low-latency code generation without managing any infrastructure. In this documentation you will learn how the service works, how to call its endpoints, how to customise output colors, and how to configure CORS for cross-origin clients.
+
+## What is QR Code Generator?
+
+QR Code Generator exposes two HTTP endpoints that together cover generation and health monitoring:
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/qr/generate` | `POST` | Accepts a JSON body with a URL (and optional colors) and returns an `image/svg+xml` QR code. |
+| `/api/health-check.json` | `GET` | Returns `{ "response": "Service running smoothly" }` — useful for uptime checks and load-balancer probes. |
+
+Every successful call to `/api/qr/generate` produces a standards-compliant SVG document. Because SVG is an XML text format, the response can be embedded directly in an HTML page with an `<img>` tag, inlined as raw markup, saved to disk, or piped into downstream image-processing tools — no binary decoding required.
+
+## How It Works
+
+The project uses **Astro Server Endpoints** (file-based API routes under `src/pages/api/`) as the entry point for each request. At build time the `@astrojs/cloudflare` adapter compiles those routes into a Cloudflare Workers-compatible bundle. At runtime, Cloudflare's edge network handles TLS termination and global routing, then invokes the Worker, which validates the incoming request, calls the `qrcode` npm library to render an SVG string, and streams the response back to the caller.
+
+```
+Client request
+     │
+     ▼
+Cloudflare Edge (global PoP)
+     │
+     ▼
+Cloudflare Worker  ←── @astrojs/cloudflare adapter
+     │
+     ▼
+Astro Server Endpoint  (src/pages/api/qr/generate.ts)
+     │
+     ▼
+qrcode library  →  SVG string
+     │
+     ▼
+Response: image/svg+xml
+```
+
+CORS is enforced at the Worker level via the `ALLOWED_ORIGINS` environment variable. The `buildCorsHeaders` helper reflects the request `Origin` back only when it appears in the allowlist, so cross-origin calls from unlisted origins are blocked by the browser automatically.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="SVG Output" icon="image">
+    Every QR code is returned as a scalable `image/svg+xml` document — crisp at any size, no rasterisation required.
+  </Card>
+  <Card title="Custom Hex Colors" icon="palette">
+    Pass a `color` object with `dark` and `light` hex values (`#RGB`, `#RGBA`, `#RRGGBB`, or `#RRGGBBAA`) to match your brand palette.
+  </Card>
+  <Card title="CORS Allowlist" icon="shield-halved">
+    Control exactly which origins can call the API cross-origin by setting the `ALLOWED_ORIGINS` environment variable to a comma-separated list.
+  </Card>
+  <Card title="Cloudflare Workers" icon="cloud">
+    Deployed to Cloudflare's global edge network via Wrangler — no servers to provision, low latency worldwide.
+  </Card>
+  <Card title="Input Validation" icon="circle-check">
+    The API enforces protocol (`http`/`https` only), maximum URL length (2 048 characters), and hex color format before attempting generation.
+  </Card>
+  <Card title="Built-in Web UI" icon="browser">
+    A static front-end is bundled alongside the API, served directly from Cloudflare's asset storage for instant preview and manual testing.
+  </Card>
+</CardGroup>
+
+## Tech Stack
+
+| Technology | Version | Role |
+|---|---|---|
+| Node.js | v24 | JavaScript runtime for local development and builds |
+| pnpm | 11.9.0 | Fast, disk-efficient package manager |
+| Astro | 6.4.8 | Web framework powering both the UI and Server Endpoints |
+| @astrojs/cloudflare | 13.7.0 | Adapter that compiles Astro output for Cloudflare Workers |
+| qrcode | 1.5.4 | SVG/PNG QR code rendering library |
+| Tailwind CSS | 4.3.1 | Utility-first CSS framework for the built-in web UI |
+
+## Next Steps
+
+<Card title="Quickstart" icon="rocket" href="/quickstart">
+  Make your first `POST /api/qr/generate` call and receive an SVG QR code in under five minutes.
+</Card>

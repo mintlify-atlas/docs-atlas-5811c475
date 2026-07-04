@@ -1,0 +1,145 @@
+---
+title: "Run and Write Tests for QR Code Generator"
+sidebarTitle: "Testing"
+description: "QR Code Generator uses Vitest for unit testing its API endpoints and HTTP utilities. Run tests with pnpm test or generate a coverage report."
+---
+
+QR Code Generator's test suite is built on [Vitest 4](https://vitest.dev) and runs entirely in a Node.js environment — no browser or HTTP server required. Tests cover the two Astro API route handlers (`/api/qr/generate` and `/api/health-check.json`) and the shared CORS utility in `src/lib/http.ts`. Endpoint handlers are imported directly and called with a minimal `APIContext` mock, keeping tests fast and dependency-free.
+
+## Running Tests
+
+### Run all tests
+
+Execute the full test suite once and print the results to the terminal:
+
+```bash
+pnpm test
+```
+
+This runs `vitest run`, which exits after all tests complete — suitable for CI and pre-commit checks.
+
+### Generate a coverage report
+
+Run the suite with V8 instrumentation and produce a coverage report:
+
+```bash
+pnpm test:coverage
+```
+
+Coverage is collected for `src/lib/**` and `src/pages/api/**`. After the run, Vitest writes the report to the `coverage/` directory (excluded from TypeScript compilation and ESLint).
+
+## Test Structure
+
+The test files live under `test/` and are organised to mirror the source tree:
+
+```
+test/
+├── api/
+│   ├── generate.test.ts
+│   └── health-check.test.ts
+├── lib/
+│   └── http.test.ts
+└── stubs/
+    └── cloudflare-workers.ts
+```
+
+### `test/api/generate.test.ts`
+
+Tests the `POST /api/qr/generate` endpoint and its OPTIONS preflight handler across three `describe` blocks:
+
+- **Validation (9 cases)** — Verifies that the handler returns `400` for a non-JSON body, a non-object body, a missing `url`, a URL over the maximum length (~2 050 characters), a malformed URL, a non-`http(s)` protocol (`ftp://`), a non-object `color` value, an invalid `dark` hex color, and an invalid `light` hex color.
+- **Success (3 cases)** — Confirms that a valid request returns a `200` response with `Content-Type: image/svg+xml` and SVG markup, that the default palette includes `#000000`, and that valid custom hex colors (e.g. `#123`) are accepted.
+- **OPTIONS preflight (1 case)** — Asserts that the preflight responds with `204` and sets `Access-Control-Allow-Methods: POST, OPTIONS`.
+
+### `test/api/health-check.test.ts`
+
+Tests the health-check endpoint (`src/pages/api/health-check.json`) with two cases inside a single `describe` block:
+
+- **GET** — Expects a `200` response with `Content-Type: application/json` and the body `{ "response": "Service running smoothly" }`.
+- **OPTIONS** — Expects a `204` preflight response with `Access-Control-Allow-Methods: GET, OPTIONS`.
+
+### `test/lib/http.test.ts`
+
+Tests the two exported functions from `src/lib/http.ts`:
+
+- **`buildCorsHeaders` (5 cases)** — Checks that the function always sets `Access-Control-Allow-Methods`, `Access-Control-Allow-Headers`, `Access-Control-Max-Age`, and `Vary`; omits `Access-Control-Allow-Origin` for same-origin requests (no `Origin` header); reflects the `Origin` when it appears in the `ALLOWED_ORIGINS` allowlist; omits `Access-Control-Allow-Origin` when the origin is not allowed; and trims whitespace and ignores empty entries in the allowlist.
+- **`preflightResponse` (1 case)** — Asserts that the function returns a `Response` with status `204` and correctly copies the supplied headers.
+
+## Example Test
+
+The snippet below is the core success test from `test/api/generate.test.ts`. It imports the handler directly, builds a minimal `APIContext` with a real `Request` object, and asserts on the returned `Response` — no live server needed:
+
+```ts
+import type { APIContext } from 'astro';
+
+import { describe, expect, it } from 'vitest';
+
+import { OPTIONS, POST } from '../../src/pages/api/qr/generate';
+
+const context = (request: Request) => ({ request }) as unknown as APIContext;
+
+const postJson = (data: unknown) =>
+  context(
+    new Request('https://qr.example.com/api/qr/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
+  );
+
+describe('POST /api/qr/generate — success', () => {
+  it('returns an SVG for a valid url', async () => {
+    const response = await POST(postJson({ url: 'https://astro.build' }));
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Content-Type')).toBe('image/svg+xml');
+    expect(await response.text()).toContain('<svg');
+  });
+});
+```
+
+## Cloudflare Workers Stub
+
+The `cloudflare:workers` virtual module is provided by the Wrangler runtime at deploy time and exposes the `env` object that holds bindings such as `ALLOWED_ORIGINS`. Because Vitest runs in Node.js — where the virtual module does not exist — the import is redirected to a hand-written stub:
+
+```ts
+// test/stubs/cloudflare-workers.ts
+
+// Stand-in for the `cloudflare:workers` virtual module under Node test runs.
+// The object is mutable so individual tests can adjust `ALLOWED_ORIGINS`.
+export const env: { ALLOWED_ORIGINS: string } = { ALLOWED_ORIGINS: '' };
+```
+
+Vitest's `resolve.alias` config maps the `cloudflare:workers` specifier to this file:
+
+```ts
+// vitest.config.ts (excerpt)
+resolve: {
+  alias: {
+    'cloudflare:workers': fileURLToPath(
+      new URL('./test/stubs/cloudflare-workers.ts', import.meta.url),
+    ),
+  },
+},
+```
+
+Because the exported `env` object is mutable, individual tests in `http.test.ts` can set any `ALLOWED_ORIGINS` value they need without any additional mocking infrastructure.
+
+## Coverage
+
+Coverage is collected with the `@vitest/coverage-v8` provider, which uses Node.js's built-in V8 coverage instrumentation — no Babel transforms required. The scope is intentionally limited to application code:
+
+```ts
+// vitest.config.ts (excerpt)
+coverage: {
+  provider: 'v8',
+  include: ['src/lib/**', 'src/pages/api/**'],
+},
+```
+
+<Note>
+  Tests import endpoint handlers directly and invoke them as plain async
+  functions. The `APIContext` argument is satisfied by a minimal cast —
+  `({ request }) as unknown as APIContext` — because the handlers only read
+  `context.request`. This pattern means there is no HTTP server to start or
+  shut down, and each test case is fully isolated from the others.
+</Note>

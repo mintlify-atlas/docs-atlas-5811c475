@@ -1,0 +1,166 @@
+---
+title: "Deploy QR Code Generator to Cloudflare Workers"
+sidebarTitle: "Deployment"
+description: "Deploy QR Code Generator to Cloudflare Workers using Wrangler CLI or automate deployments with the included GitHub Actions workflow."
+---
+
+QR Code Generator runs entirely on Cloudflare Workers via the `@astrojs/cloudflare` adapter. You have two paths to production: a one-command manual deploy using the Wrangler CLI, or a fully automated CI/CD pipeline powered by the included GitHub Actions workflow that verifies your code before every release.
+
+## Prerequisites
+
+Before deploying, make sure you have the following in place:
+
+- A [Cloudflare account](https://dash.cloudflare.com/sign-up) with Workers enabled
+- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/install-and-update/) installed (`wrangler` is included as a project dev dependency)
+- A Cloudflare API token (`CF_API_TOKEN`) with Workers deployment permissions
+- Your Cloudflare account ID (`CF_ACCOUNT_ID`), found in the Cloudflare dashboard sidebar
+
+## Manual Deployment
+
+Use the following steps to build and deploy the project to Cloudflare Workers from your local machine.
+
+<Steps>
+  <Step title="Install dependencies">
+    Install all project dependencies using pnpm.
+
+    ```bash
+    pnpm install
+    ```
+  </Step>
+
+  <Step title="Authenticate with Cloudflare">
+    Log in to Cloudflare via Wrangler. This opens a browser window to complete OAuth.
+
+    ```bash
+    pnpm wrangler login
+    ```
+  </Step>
+
+  <Step title="Build and deploy">
+    Run the `publish` script to type-check, build, and deploy in one step.
+
+    ```bash
+    pnpm publish
+    ```
+
+    Internally this runs:
+
+    ```bash
+    pnpm build && wrangler deploy
+    ```
+
+    Wrangler reads `wrangler.jsonc` for the worker name, entry point, and asset directory, then uploads your build to Cloudflare Workers.
+  </Step>
+</Steps>
+
+<Note>
+  `pnpm publish` in this project is **not** the standard npm registry publish command — it is a custom script defined in `package.json` that runs `pnpm build && wrangler deploy`. It will not publish any package to a registry.
+</Note>
+
+## Local Preview with Wrangler
+
+To simulate the Cloudflare Workers runtime on your local machine before deploying, use the `preview` script. This builds the project and starts a local Wrangler dev server that mirrors the production Workers environment.
+
+```bash
+pnpm preview
+```
+
+Internally this runs:
+
+```bash
+pnpm build && wrangler dev
+```
+
+The local server will be available at `http://localhost:8787` by default. Unlike `pnpm dev` (which uses Astro's Vite dev server), `pnpm preview` runs inside the actual Workerd runtime, making it the most accurate way to test Workers-specific behaviour such as environment bindings and compatibility flags.
+
+## CI/CD with GitHub Actions
+
+The repository ships with a GitHub Actions workflow at `.github/workflows/ci.yml` that automates verification and deployment on every push to `main`.
+
+### Workflow overview
+
+The pipeline contains two jobs that run sequentially:
+
+**`verify` — Type-check, lint, test, and build**
+
+Runs on every push and every pull request. The job fails fast if any step does not pass, preventing broken code from reaching the deploy step.
+
+| Step | Command |
+|---|---|
+| Type check | `pnpm check` |
+| Lint | `pnpm lint` |
+| Test | `pnpm test` |
+| Build | `pnpm build` |
+
+**`deploy` — Deploy to Cloudflare Workers**
+
+Runs only on pushes to `main` (not on pull requests), and only after `verify` succeeds. It uses [`cloudflare/wrangler-action@v3`](https://github.com/cloudflare/wrangler-action) to deploy without requiring a local Wrangler login.
+
+```yaml
+- name: Publish
+  uses: cloudflare/wrangler-action@v3
+  with:
+    wranglerVersion: 4.87.0
+    apiToken: ${{ secrets.CF_API_TOKEN }}
+    accountId: ${{ secrets.CF_ACCOUNT_ID }}
+    command: deploy
+```
+
+The `deploy` job also uses a concurrency group (`deploy-${{ github.ref }}`) with `cancel-in-progress: true`, so a new push to `main` while a deploy is running will cancel the in-flight deploy and start a fresh one.
+
+### Required GitHub Secrets
+
+Add the following secrets to your repository under **Settings → Secrets and variables → Actions**:
+
+| Secret | Description |
+|---|---|
+| `CF_API_TOKEN` | Cloudflare API token with Workers deployment permissions |
+| `CF_ACCOUNT_ID` | Your Cloudflare account ID |
+
+## Wrangler Configuration Reference
+
+The `wrangler.jsonc` file at the project root controls how Wrangler builds and deploys the worker.
+
+| Setting | Value | Description |
+|---|---|---|
+| `name` | `qr-code` | The name of the Cloudflare Worker |
+| `main` | `@astrojs/cloudflare/entrypoints/server` | Worker entry point provided by the Astro Cloudflare adapter |
+| `compatibility_date` | `2026-04-21` | Workers runtime compatibility snapshot date |
+| `compatibility_flags` | `["nodejs_compat"]` | Enables Node.js built-in API compatibility in the Workers runtime |
+| `assets.directory` | `./dist/client` | Static assets directory served by the Workers Assets binding |
+
+```jsonc
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "qr-code",
+  "main": "@astrojs/cloudflare/entrypoints/server",
+  "compatibility_date": "2026-04-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "directory": "./dist/client" },
+  "vars": { "ALLOWED_ORIGINS": "" }
+}
+```
+
+## Observability
+
+Logs and distributed traces are enabled by default in `wrangler.jsonc`. Both are persisted to Cloudflare and sampled at 100% (`head_sampling_rate: 1`), meaning every request is captured.
+
+```jsonc
+"observability": {
+  "enabled": true,
+  "head_sampling_rate": 1,
+  "logs": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "persist": true,
+    "invocation_logs": true
+  },
+  "traces": {
+    "enabled": true,
+    "persist": true,
+    "head_sampling_rate": 1
+  }
+}
+```
+
+You can view logs and traces in the Cloudflare dashboard under **Workers & Pages → qr-code → Logs** after your first deployment.

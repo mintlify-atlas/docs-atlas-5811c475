@@ -1,0 +1,68 @@
+---
+title: "GET /api/health-check.json — Service Health Status"
+sidebarTitle: "GET /api/health-check.json"
+description: "GET /api/health-check.json — returns a JSON confirmation that the QR Code Generator service is running. Use for uptime monitoring and readiness checks."
+---
+
+The `/api/health-check.json` endpoint provides a lightweight liveness signal for the QR Code Generator service. It requires no request body and always returns a fixed JSON payload confirming the service is up. Use it for uptime monitoring dashboards, load balancer health probes, CI pipeline readiness checks, or any automated process that needs to verify the Worker is reachable before sending real traffic.
+
+```
+GET /api/health-check.json
+```
+
+## Request
+
+No request body or query parameters are required. The endpoint accepts standard HTTP headers including `Origin` for CORS preflight flows. No `Content-Type` header is needed.
+
+## Response
+
+### 200 OK
+
+| Header | Value |
+|---|---|
+| Content-Type | application/json |
+
+<ResponseField name="response" type="string">
+  A fixed confirmation string. Always returns `"Service running smoothly"` when the Worker is operational.
+</ResponseField>
+
+**Response body:**
+
+```json
+{ "response": "Service running smoothly" }
+```
+
+## Code Examples
+
+<CodeGroup>
+
+```bash curl
+curl https://your-worker.workers.dev/api/health-check.json
+```
+
+```js JavaScript fetch
+const response = await fetch('https://your-worker.workers.dev/api/health-check.json');
+const data = await response.json();
+console.log(data); // { response: 'Service running smoothly' }
+```
+
+</CodeGroup>
+
+## CORS and OPTIONS
+
+Like all API endpoints, `/api/health-check.json` includes CORS headers on every response:
+
+| Header | Value |
+|---|---|
+| Access-Control-Allow-Methods | GET, OPTIONS |
+| Access-Control-Allow-Headers | Content-Type |
+| Access-Control-Max-Age | 86400 |
+| Vary | Origin |
+
+`Access-Control-Allow-Origin` is reflected only when the request `Origin` matches an entry in the `ALLOWED_ORIGINS` Worker environment variable.
+
+Sending an `OPTIONS` request to this endpoint returns `204 No Content` with the same CORS headers — no body — to satisfy browser preflight checks.
+
+<Tip>
+  This endpoint is well-suited for external uptime monitors such as Cloudflare health checks, UptimeRobot, Better Uptime, or any HTTP probe that expects a `200` response with a non-empty JSON body. Configure the monitor to assert that the response body contains `"Service running smoothly"` for a stricter liveness check beyond a bare HTTP status code.
+</Tip>

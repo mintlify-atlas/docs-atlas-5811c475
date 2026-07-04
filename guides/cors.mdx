@@ -1,0 +1,111 @@
+---
+title: "Configure Cross-Origin Resource Sharing (CORS)"
+sidebarTitle: "CORS"
+description: "QR Code Generator uses an origin allowlist to control cross-origin API access. Set ALLOWED_ORIGINS in wrangler.jsonc to enable CORS from your frontend domains."
+---
+
+QR Code Generator uses an explicit origin allowlist to control cross-origin access. Rather than using a wildcard (`*`) that would allow any origin, the service reflects the request `Origin` header back to the caller only when that origin appears in the `ALLOWED_ORIGINS` environment variable. Requests from origins not on the list — or same-origin requests that carry no `Origin` header at all — receive no `Access-Control-Allow-Origin` header, and the browser enforces its default same-origin policy.
+
+## How CORS Works in This Service
+
+The `buildCorsHeaders` function in `src/lib/http.ts` is called by every API endpoint to build the response headers for both regular requests and OPTIONS preflight requests.
+
+```typescript
+const CORS_MAX_AGE = '86400';
+
+export const buildCorsHeaders = (
+  request: Request,
+  env: Env,
+  methods: string,
+): Record<string, string> => {
+  const allowedOrigins = (env.ALLOWED_ORIGINS ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  const headers: Record<string, string> = {
+    'Access-Control-Allow-Methods': methods,
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Max-Age': CORS_MAX_AGE,
+    Vary: 'Origin',
+  };
+
+  const origin = request.headers.get('Origin');
+  if (origin && allowedOrigins.includes(origin)) {
+    headers['Access-Control-Allow-Origin'] = origin;
+  }
+
+  return headers;
+};
+```
+
+The function always emits a fixed set of headers for every response, then conditionally adds `Access-Control-Allow-Origin` only when the incoming `Origin` matches the allowlist. The `Vary: Origin` header is always present to prevent shared caches from serving one origin's CORS response to a different origin.
+
+<Tip>
+  The service automatically trims whitespace from each entry in `ALLOWED_ORIGINS` before comparing against the request origin. You can safely write `https://myapp.com, https://staging.myapp.com` (with spaces after the comma) and both origins will be recognised correctly.
+</Tip>
+
+## Response Headers
+
+Every API response includes the following headers, regardless of whether the origin is allowed:
+
+| Header | Value | Notes |
+|---|---|---|
+| `Access-Control-Allow-Origin` | Reflected request `Origin` | Only included when the origin is in the allowlist; omitted otherwise |
+| `Access-Control-Allow-Methods` | Endpoint-specific (e.g. `GET, OPTIONS`) | Set per endpoint |
+| `Access-Control-Allow-Headers` | `Content-Type` | Fixed value |
+| `Access-Control-Max-Age` | `86400` | Preflight cache duration: 24 hours |
+| `Vary` | `Origin` | Always set; prevents cache poisoning across origins |
+
+## Preflight Requests
+
+All API endpoints handle the HTTP `OPTIONS` method for CORS preflight. When a browser sends a preflight `OPTIONS` request, the endpoint calls `preflightResponse` which returns an empty `204 No Content` response with the full set of CORS headers.
+
+```typescript
+export const preflightResponse = (corsHeaders: Record<string, string>): Response =>
+  new Response(null, { status: 204, headers: corsHeaders });
+```
+
+The `Access-Control-Max-Age: 86400` header tells the browser to cache the preflight result for 24 hours, reducing the number of preflight round-trips for repeat requests to the same endpoint.
+
+## Setting Up ALLOWED_ORIGINS
+
+Set the `ALLOWED_ORIGINS` variable in `wrangler.jsonc` to a comma-separated list of the origins that need cross-origin access to the API.
+
+```jsonc
+// wrangler.jsonc
+"vars": { "ALLOWED_ORIGINS": "https://myapp.com,https://staging.myapp.com" }
+```
+
+For production, set the variable in the Cloudflare dashboard so origin values are not committed to source control. See the [Configuration guide](/guides/configuration) for full setup instructions.
+
+## Behavior Reference
+
+The table below summarises how the service responds under different request scenarios:
+
+| Scenario | `Origin` header | In allowlist | Result |
+|---|---|---|---|
+| Same-origin request | absent | n/a | No `Access-Control-Allow-Origin` header; browser allows the request normally |
+| Cross-origin, allowed | present | yes | `Access-Control-Allow-Origin` reflects the request origin; browser permits the response |
+| Cross-origin, blocked | present | no | No `Access-Control-Allow-Origin` header; browser blocks the response |
+
+## Common Configurations
+
+<CardGroup cols={2}>
+  <Card title="Single production domain" icon="globe">
+    Allow one frontend domain in production:
+
+    ```
+    ALLOWED_ORIGINS=https://myapp.com
+    ```
+  </Card>
+  <Card title="Multiple environments" icon="layers">
+    Allow both production and staging frontends:
+
+    ```
+    ALLOWED_ORIGINS=https://myapp.com,https://staging.myapp.com
+    ```
+  </Card>
+</CardGroup>
+
+For the full list of configuration options and how to set variables in the Cloudflare dashboard, see the [Configuration guide](/guides/configuration).
